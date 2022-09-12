@@ -133,7 +133,7 @@ We know that there are 3 kinds of pointers to memory in an Cairo program -
 
 Any variable which is referenced with respect to the `ap` is hence dependent on the compiler being able to remember it's relative position with respect to the pointer. 
 
-However, since the `ap` can change if jump to a different function or part of the program, we may just lose the value stored in a particular slot forever. Read more [here](https://www.cairo-lang.org/docs/how_cairo_works/consts.html). 
+However, since the `ap` can change if the `pc` jumps to a different function or part of the program, we may just lose the value stored in a particular slot forever. Read more [here](https://www.cairo-lang.org/docs/how_cairo_works/consts.html). 
 
 To solve this, we have to protect variables which are prone to being called across multiple functions from revocation. One such strategy is to reference the variable with respect to the frame pointer using the `local` keyword.  
 
