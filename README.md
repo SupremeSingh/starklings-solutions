@@ -137,9 +137,114 @@ However, since the `ap` can change if the `pc` jumps to a different function or 
 
 To solve this, we have to protect variables which are prone to being called across multiple functions from revocation. One such strategy is to reference the variable with respect to the frame pointer using the `local` keyword.  
 
-For instance, 
 ```
 alloc_locals
 let (local x) = foo(10)
 ```
 we are basically calling `foo(10)`, then setting that to x and making x a local variable so it [cannot be revoked](https://stackoverflow.com/questions/71738301/what-does-it-mean-to-declare-a-local-variable-inside-a-let?rq=1) across multiple function calls. 
+
+In this problem, we learn that it isn't just variables which need protection though. 
+
+Implicit arguments serve a dual purpose. Not only are they implicitly passed as a reference to any function that receives them, but they're also implicitly returned with any updates to the implicit arguments that happened in the called function. So, they can be revoked during inner function calls, unless they are rebound via the implicit return from the inner function or stored using local.
+
+  ## P6 - Recursions 
+
+One of the most common operations in all software is iterating over a data structure to get a piece of information. Unfortunately, since computation is payed for on-chain, we try to keep such operations to a minimum. However, sometimes just an O(n) operation is inevitable.
+ 
+ In such cases, it is important to know you cannot just run a `for` or `while` loop on your code. This is Cairo. Any iteration is done using recursion, and preferable [tail recursion](https://stackoverflow.com/questions/33923/what-is-tail-recursion) since Cairo's compiler can optimize for that. 
+
+The first one is self-explanatory, but we run into an interesting issue in the second problem. Remember how we talked about Cairo memory being immutable - you cannot just modify a variable and re-store it's new value in the same slot. You have to modify the function's [signature](https://developer.mozilla.org/en-US/docs/Glossary/Signature/Function). 
+  
+ At this point, you must also know you can make a dynamic array in Cairo as - 
+
+```
+let (dynamic_array: felt*) = alloc()
+```
+
+Interestingly, we notice here too that though Cairo is very restricted to felts, we can always create more complex data types on top of them. Rest assured, this section is more about your programming skills than anything else. Happy hacking !!
+
+ ## P7 - Hints
+
+So far, if you are anything like me, you might already be chewing your nails and cursing Cairo for being so counter-intuitive. But I bet you don't think so harshly of Python. So what if I told you, you could write Cairo code in Python, even in a Cairo file !!
+
+Granted it is a little unsafe, `hints` allow you to create a section in your Cairo program to include Python code. You can even manipulate existing variables in the file. 
+
+Hints look like so - 
+
+```
+    %{  
+        ids.quotient = x / n
+        ids.remainder = x % n
+    %}
+```
+
+And are a useful way to outsource computation so Starknet can focus on what it does best - fast verification. 
+
+However, hints are not part of the final Cairo bytecode. That is, when looking at bytecode, the part you put in a hint will be 'invisible' to an auditor or user. This opens the path for a malicious program to provide wrong results.
+
+Note: You should always verify computations done inside hints. Eg. 
+
+```
+assert x = quotient * n + remainder
+```
+
+  ## P8 - Tricks 
+
+There are some useful ode optimizations and tricks worth familiarizing ourselves with in the Cairo language.
+
+**Trick 1 - Single Line Conditionals**
+
+Cairo can be cumbersome at times, but it is here that Cairo's limitation to only using felts also becomes a blessing. Since everything is a number, we can easily manipulate statements to our convenience using traditional math operations. 
+
+Remember, `assert` statements can either save something in memory or check if it exists over there. You can run a simple `OR` gate in Cairo by saying -
+
+```
+func assert_and(x, y):
+    assert 1 = x * y
+    return ()
+end
+```
+
+Basically, one presumes x and y already have some data (or are 0, which is still binary) - and this checks if both X and Y are true or not.
+
+**Trick 2 - Inline Ternary Operators**
+
+Conciseness is always a feature of good software. By making a simple helper function, we can recreate the convenience and readability of a ternary operator in Cairo too. 
+
+Since everything is just a number over here, this is what a ternary function would look like - 
+
+```
+func if_then_else(cond : felt, val_true : felt, val_false) -> (res : felt):
+    assert 0 = (cond - TRUE) * (cond - FALSE)
+    let res = cond * val_true + (1 - cond) * val_false
+    return (res)
+end
+```
+
+**Trick 3 - Complex Conditionals Without If**
+
+Here, we see how we can set up relatively complex conditionals using just computation and the `math_cmp` library provided by Starkware. 
+
+Example 1 - 
+
+Let's see if a given number is binary or not. This just means we are checking if a number we have is in the set {0, 1}.
+
+```
+func is_binary_no_if(x : felt) -> (res : felt):
+    let (binary_status) = is_not_zero( (x - 0) * (x - 1))
+    return (res = 1 - binary_status)
+end
+```
+
+Example 2 - 
+
+To generalize this approach, let's check if our number is in the set {1337, 69420} and then return a string based on that.
+```
+func is_cool(x : felt) -> (res : felt):
+    let (cond) = is_not_zero((x - 1337) * (x - 69420) 
+    let res = (1 - cond) * 'cool' + cond * 'meh'
+    return (res)
+end
+```
+
+Of course, this doesn't completely remove the need for iteration and is quite manual. Bit for short operations - there is no harm in using these tricks.
