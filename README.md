@@ -248,3 +248,75 @@ end
 ```
 
 Of course, this doesn't completely remove the need for iteration and is quite manual. Bit for short operations - there is no harm in using these tricks.
+
+  ## P9 - Registers
+
+Cairo memory is immutable, but Cairo does still allow users to perform functions and manipulate values. This means, there must be something "moving" or changing with each instruction in order to enable the next command to be executed. 
+
+We already know about the 3 types of pointers to memory in Cairo - the `ap`, `fp ` and the `pc`. 	These are called "registers". They store the locations in memory, at which a certain function needs to be executed. 
+
+For instance, the `fp` points to the frame of the current function in memory. The addresses of all the function’s arguments and local variables are relative to the value of this register. When a function starts, it is equal to `ap` (that is an empty place in memory where it can be successfully run).
+
+However, `ap` changes as inner-functions are called and we make more complex operations. But unlike `ap`, the value of `fp` remains the same throughout the scope of a function. Meanwhile `pc` just records the current instruction in the execution trace that is being run. 
+
+Remember, everything is math, so you can manipulate the address your register is pointing to using simple arithmetic operations such as - 
+
+```
+[ap] = [ap - 1] * [fp], ap++;
+```
+For a new function, initially, `fp` and `ap` are the exact same value. However, once we are in it, the function tends to follow this pattern - 
+
+- The first argument given to the function is always in `[fp - 4]`
+- The second argument is stored in `[fp -  3]` and son on ... 
+- The last implicit argument is `[fp - 5]` and others are -6, -7 et al.
+- You can call an inner function and set it's arguments with `ap`.
+
+For instance to call function within another function, using the parent function's arguments, do something like - 
+
+```
+@external
+func check_array{range_check_ptr}(array_len : felt, array : felt*) -> 
+(sum : felt):
+    [ap] = [ap - 5]; ap++ # The range_check_ptr
+    [ap] = [fp - 4]; ap++
+    [ap] = [fp - 3]; ap++
+    [ap] = 0; ap++
+    call rec_sum_array
+    ret
+end
+```
+There are several other assembly instructions you can refer to in Cairo, which I have included in the solutions. 
+
+Finally, another interesting factoid is that - 
+
+- `assert [ap] = 42` checks if `ap` stores 42 already, otherwise sets it's value to 42. 
+- `assert 42 = [ap]` only checks if `ap` stores 42 already 
+
+
+## P10 - Bitwise Operations 
+
+[Bitwise operations](https://web.stanford.edu/class/archive/cs/cs107/cs107.1224/resources/bits-practice) are the cornerstone of a lot of math, particularly hard to implement with Cairo due to it's low level nature. Here we will be building a few example logical circuits which you can hopefully use in your code elsewhere. Notably, we will be depending quite a bit on the `bitwise` standard library from Cairo. 
+
+The biggest takeaway here is how easy the library makes it for users to program logical operations in Cairo. For instance, to `OR` 2 variables, just do - 
+
+```
+let (or_val) = bitwise_xor(value, pow2n)
+```
+
+On the other hand, we can also use the `Bitwise` built-in along with the `bitwise_ptr` variable to perform these operations even more concisely -
+
+```
+assert bitwise_ptr.x = value
+assert bitwise_ptr.y = pow2n
+
+assert or_value = bitwise_ptr.x_or_y
+```
+
+We can also check a binary value against certain constraints, like not being null or being less than 251 bits as - 
+
+```
+with_attr error_message("Bad bitwise bounds"):
+    assert_nn(value)
+    assert_le(value, 250)
+end
+```
